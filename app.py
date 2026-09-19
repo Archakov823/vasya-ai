@@ -7,13 +7,18 @@ import xml.etree.ElementTree as ET
 import datetime
 import streamlit as st
 import streamlit.components.v1 as components
-import ollama
 import speech_recognition as sr
+from groq import Groq
 
 try:
     import yfinance as yf
 except ImportError:
     yf = None
+
+# Инициализация Groq API (ключ берётся из секретов Streamlit Cloud или заменяется строкой)
+# Получить бесплатный ключ можно на https://console.groq.com
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "ВАШ_API_КЛЮЧ_ЕСЛИ_НУЖНО_ЛОКАЛЬНО")
+client = Groq(api_key=GROQ_API_KEY)
 
 # Настройка базы данных SQLite
 DB_NAME = "chat_history.db"
@@ -214,9 +219,8 @@ with st.sidebar.expander("📖 Инструкция по эксплуатаци�
     - Задайте депозит, % риска и число перекрытий.
     - Калькулятор автоматически покажет размер каждого шага и предупредит при опасном риске.
 
-    **4. Анализ графиков (1 и 2 таймфрейма):**
+    **4. Анализ графиков:**
     - Нажмите **Файл** или **Камера** внизу экрана для загрузки скриншота графика.
-    - Для двойного анализа откройте папку **📊 Мультитаймфрейм** и загрузите H1 и M1/M5.
 
     **5. Голосовые функции и синтез:**
     - Используйте синюю кнопку микрофона для голосовых вопросов.
@@ -226,7 +230,7 @@ with st.sidebar.expander("📖 Инструкция по эксплуатаци�
     - Отправьте фразы со словами *"нарисуй..."* или *"создай видео..."* для получения картинок/анимаций.
     """)
 
-# 2. Выбор любого индикатора и быстрые вопросы
+# 2. Выбор индикатора
 quick_prompt_clicked = None
 with st.sidebar.expander("📉 Выбор индикаторов и вопросов", expanded=False):
     indicator_list = [
@@ -237,13 +241,6 @@ with st.sidebar.expander("📉 Выбор индикаторов и вопрос
         "Stochastic Oscillator (Стохастик)",
         "EMA / SMA (Скользящие средние)",
         "Fibonacci Retracement (Фибоначчи)",
-        "ATR (Average True Range)",
-        "Parabolic SAR",
-        "Ichimoku Cloud (Облако Ишимоку)",
-        "Supertrend",
-        "Volume (Объёмы)",
-        "CCI (Commodity Channel Index)",
-        "Awesome Oscillator",
         "Свой индикатор..."
     ]
     selected_indicator = st.selectbox("Выберите индикатор:", indicator_list)
@@ -277,7 +274,6 @@ with st.sidebar.expander("🧮 Калькулятор риска и Мартин
     initial_trade = deposit * (risk_pct / 100.0)
     st.write(f"**1-я сделка:** ${initial_trade:.2f}")
 
-    st.caption("Расчёт шагов перекрытия:")
     current_step_amount = initial_trade
     total_risk = 0.0
 
@@ -292,24 +288,7 @@ with st.sidebar.expander("🧮 Калькулятор риска и Мартин
     else:
         st.success(f"✅ Общий риск: {risk_of_depo:.1f}% от депозита")
 
-# 4. Сравнение двух графиков (Мультитаймфрейм)
-multi_prompt_clicked = None
-multi_images = []
-with st.sidebar.expander("📊 Мультитаймфрейм (2 графика)", expanded=False):
-    st.caption("Загрузите 2 скриншота для анализа")
-    tf_h1 = st.file_uploader("Старший ТФ (H1/H4)", type=["png", "jpg", "jpeg"], key="tf_h1")
-    tf_m1 = st.file_uploader("Младший ТФ (M1/M5)", type=["png", "jpg", "jpeg"], key="tf_m1")
-
-    if tf_h1 and tf_m1:
-        if st.button("🔍 Анализ 2-х графиков", use_container_width=True):
-            multi_prompt_clicked = (
-                "Проанализируй эти два графика: первый — старший таймфрейм (H1/H4), "
-                "второй — младший таймфрейм (M1/M5). "
-                "Сверь тренд на старшем ТФ и найди точную точку входа на младшем ТФ. Дай итоговую рекомендацию (Call/Put)."
-            )
-            multi_images = [tf_h1.getvalue(), tf_m1.getvalue()]
-
-# 5. Экономический календарь и новости
+# 4. Новости
 with st.sidebar.expander("📅 Новости и Экономический календарь", expanded=False):
     st.caption("Ключевые события и High Impact новости")
     news_loaded = False
@@ -328,28 +307,9 @@ with st.sidebar.expander("📅 Новости и Экономический ка
             pass
 
     if not news_loaded:
-        try:
-            rss_url = "https://news.google.com/rss/search?q=forex+trading+economy&hl=ru&gl=RU&ceid=RU:ru"
-            req = urllib.request.Request(
-                rss_url, 
-                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-            )
-            with urllib.request.urlopen(req, timeout=4) as response:
-                root = ET.fromstring(response.read())
-                items = root.findall('.//item')[:3]
-                if items:
-                    for item in items:
-                        title_elem = item.find('title')
-                        title = title_elem.text if title_elem is not None else "Новость финансового рынка"
-                        st.markdown(f"🐂🐂 **[Маркет-новость]** {title}")
-                    news_loaded = True
-        except Exception:
-            pass
+        st.info("Мониторинг рынков активен.")
 
-    if not news_loaded:
-        st.info("Мониторинг рынков активен. Перед выходом важных новостей соблюдайте риск-менеджмент.")
-
-# 6. Экспорт истории
+# 5. Экспорт истории
 with st.sidebar.expander("💾 Скачать историю сессий", expanded=False):
     messages_data = load_history()
     if messages_data:
@@ -367,7 +327,6 @@ with st.sidebar.expander("💾 Скачать историю сессий", expa
             mime="text/plain",
             use_container_width=True
         )
-
         st.download_button(
             label="📦 Скачать историю (JSON)",
             data=json_output,
@@ -378,7 +337,7 @@ with st.sidebar.expander("💾 Скачать историю сессий", expa
     else:
         st.caption("История сообщений пока пуста.")
 
-# 7. ПАПКА: СВЯЗЬ
+# 6. ПАПКА: СВЯЗЬ
 with st.sidebar.expander("📲 Связь", expanded=False):
     st.markdown("### 💬 Официальный Telegram")
     st.markdown("Наш канал и поддержка:")
@@ -389,18 +348,13 @@ st.title("✨ Вася AI")
 
 is_auto_voice = st.toggle("🔊 Авто-озвучка ответов", value=True, key="auto_voice_toggle")
 
-TEXT_MODEL = "llama3.2:1b"
-VISION_MODEL = "llava"
-
-OLLAMA_OPTIONS = {
-    "num_ctx": 4096,
-    "temperature": 0.3,
-}
+# Используем быструю и мощную модель Groq
+TEXT_MODEL = "llama-3.3-70b-versatile"
 
 if "Скальпинг" in selected_mode:
     mode_instruction = "Режим: Скальпинг. Отвечай предельно кратко, чётко, давай сразу суть, уровни и сигнал (Call/Put), без долгих теорий."
 else:
-    mode_instruction = "Режим: Обучение и аналитика. Отвечай подробно, развёрнуто, объясняй причины движения цены, индикаторы и логику с анализами."
+    mode_instruction = "Режим: Обучение и аналитика. Отвечай подробно, развёрнуто, объясняй причины движения цены, индикаторы и логику."
 
 SYSTEM_PROMPT = {
     "role": "system",
@@ -408,10 +362,10 @@ SYSTEM_PROMPT = {
         "Тебя зовут Вася. "
         "Ты — эксперт, трейдер и аналитик финансовых рынков и бинарных опционов.\n"
         f"{mode_instruction}\n"
-        "Ты подробно знаешь технический и свечной анализ, индикаторы (RSI, MACD, Bollinger Bands, Stochastic, EMA и др.), риск-менеджмент и стратегии.\n"
+        "Ты подробно знаешь технический и свечной анализ, индикаторы, риск-менеджмент и стратегии.\n"
         "В обычных ответах и приветствиях НЕ обращайся к пользователю словом 'хозяин'. "
         "На приветствие отвечай просто: 'Привет! Я Вася.'. "
-        "На любые вопросы про то, кто тебя создал, разработал, придумал, или чей ты, или кто твой хозяин — всегда строго и кратко отвечай: 'Олег Арчаков.'"
+        "На любые вопросы про то, кто тебя создал, разработал, придумал, чей ты или кто твой хозяин — всегда строго и кратко отвечай: 'Олег Арчаков.'"
     )
 }
 
@@ -439,13 +393,10 @@ def speak_in_browser(text):
                 
                 var bestVoice = ruVoices.find(function(v) {{
                     var name = v.name.toLowerCase();
-                    return name.includes('natural') || name.includes('google') || name.includes('premium') || name.includes('pavel') || name.includes('dmitry');
+                    return name.includes('natural') || name.includes('google') || name.includes('premium');
                 }}) || ruVoices[0];
 
-                if (bestVoice) {{
-                    msg.voice = bestVoice;
-                }}
-
+                if (bestVoice) {{ msg.voice = bestVoice; }}
                 window.speechSynthesis.speak(msg);
             }}
 
@@ -482,7 +433,6 @@ for idx, message in enumerate(st.session_state.messages):
                 speak_in_browser(message["content"])
 
         st.markdown(message["content"])
-        
         if "image_url" in message:
             st.image(message["image_url"], use_container_width=True)
         if "video_url" in message:
@@ -543,10 +493,10 @@ if audio_value:
             st.warning("Не удалось распознать речь.")
 
 text_prompt = st.chat_input("Спросите Васю...")
-prompt = multi_prompt_clicked or quick_prompt_clicked or voice_prompt or text_prompt
+prompt = quick_prompt_clicked or voice_prompt or text_prompt
 
 if image_to_process and not prompt:
-    prompt = "Проанализируй данный торговый график/картинку. Укажи тренд, уровни поддержки и сопротивления и сделку (Call/Put)."
+    prompt = "Проанализируй данный график/картинку. Укажи тренд, уровни поддержки и сопротивления и сделку (Call/Put)."
 
 if prompt:
     save_message("user", prompt)
@@ -561,103 +511,34 @@ if prompt:
         if is_creator_prompt(prompt):
             reply_text = "Олег Арчаков."
             st.markdown(reply_text)
-            
             if is_auto_voice:
                 speak_in_browser(reply_text)
-
             save_message("assistant", reply_text)
             st.session_state.messages.append({"role": "assistant", "content": reply_text})
-
-        elif multi_images:
-            with st.spinner("Вася сравнивает старший и младший таймфреймы..."):
-                try:
-                    response = ollama.chat(
-                        model=VISION_MODEL,
-                        messages=[
-                            {
-                                "role": "user",
-                                "content": prompt,
-                                "images": multi_images
-                            }
-                        ],
-                        options=OLLAMA_OPTIONS,
-                        keep_alive="1h"
-                    )
-                    full_response = response["message"]["content"]
-                    st.markdown(full_response)
-                    
-                    if is_auto_voice:
-                        speak_in_browser(full_response)
-                    
-                    save_message("assistant", full_response)
-                    st.session_state.messages.append({"role": "assistant", "content": full_response})
-                except Exception as e:
-                    st.error(f"Ошибка анализа мультитаймфрейма: {e}")
-
-        elif image_to_process:
-            with st.spinner("Вася анализирует график..."):
-                try:
-                    img_bytes = image_to_process.getvalue()
-                    response = ollama.chat(
-                        model=VISION_MODEL,
-                        messages=[
-                            {
-                                "role": "user",
-                                "content": prompt,
-                                "images": [img_bytes]
-                            }
-                        ],
-                        options=OLLAMA_OPTIONS,
-                        keep_alive="1h"
-                    )
-                    full_response = response["message"]["content"]
-                    st.markdown(full_response)
-                    
-                    if is_auto_voice:
-                        speak_in_browser(full_response)
-                    
-                    save_message("assistant", full_response)
-                    st.session_state.messages.append({"role": "assistant", "content": full_response})
-                except Exception as e:
-                    st.error(f"Ошибка модели зрения: {e}")
 
         elif is_image_prompt(prompt):
             with st.spinner("Рисую картинку..."):
                 encoded_prompt = urllib.parse.quote(prompt)
                 image_url = f"https://pollinations.ai/p/{encoded_prompt}?width=1024&height=1024&model=flux&seed=42"
-                
                 reply_text = "Вот картинка, которую вы просили!"
                 st.markdown(reply_text)
                 st.image(image_url, use_container_width=True)
-                
                 if is_auto_voice:
                     speak_in_browser(reply_text)
-
                 save_message("assistant", reply_text, image_url=image_url)
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": reply_text,
-                    "image_url": image_url
-                })
+                st.session_state.messages.append({"role": "assistant", "content": reply_text, "image_url": image_url})
 
         elif is_video_prompt(prompt):
             with st.spinner("Создаю видео..."):
                 encoded_prompt = urllib.parse.quote(prompt)
                 video_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=flux&nologo=true"
-                
                 reply_text = "Вот сгенерированный видеофрагмент!"
                 st.markdown(reply_text)
                 st.image(video_url, caption="Сгенерированная анимация")
-                
                 if is_auto_voice:
                     speak_in_browser(reply_text)
-
                 save_message("assistant", reply_text, video_url=video_url)
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": reply_text,
-                    "video_url": video_url
-                })
+                st.session_state.messages.append({"role": "assistant", "content": reply_text, "video_url": video_url})
 
         else:
             response_placeholder = st.empty()
@@ -670,17 +551,18 @@ if prompt:
                     for m in recent_messages if "content" in m
                 ]
                 
-                stream = ollama.chat(
+                # Запрос к облачному Groq API
+                completion = client.chat.completions.create(
                     model=TEXT_MODEL,
                     messages=messages_to_send,
-                    stream=True,
-                    options=OLLAMA_OPTIONS,
-                    keep_alive="1h"
+                    temperature=0.3,
+                    stream=True
                 )
                 
-                for chunk in stream:
-                    full_response += chunk["message"]["content"]
-                    response_placeholder.markdown(full_response + "▌")
+                for chunk in completion:
+                    if chunk.choices[0].delta.content:
+                        full_response += chunk.choices[0].delta.content
+                        response_placeholder.markdown(full_response + "▌")
                 
                 response_placeholder.markdown(full_response)
                 
@@ -691,4 +573,4 @@ if prompt:
                 st.session_state.messages.append({"role": "assistant", "content": full_response})
                 
             except Exception as e:
-                st.error(f"Ошибка: {e}")
+                st.error(f"Ошибка обращения к Groq API: {e}. Проверьте ваш API-ключ.")
