@@ -3,17 +3,11 @@ import json
 import sqlite3
 import urllib.parse
 import urllib.request
-import xml.etree.ElementTree as ET
 import datetime
 import streamlit as st
 import streamlit.components.v1 as components
 import speech_recognition as sr
 from groq import Groq
-
-try:
-    import yfinance as yf
-except ImportError:
-    yf = None
 
 # Проверка и инициализация Groq API
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
@@ -99,12 +93,6 @@ st.markdown("""
         margin-bottom: 8px !important;
     }
     
-    div[data-testid="stToggle"] {
-        display: flex;
-        justify-content: center;
-        margin-bottom: 15px;
-    }
-
     section[data-testid="stSidebar"] {
         background-color: #1E1F20 !important;
         border-right: 1px solid #282A2C !important;
@@ -119,57 +107,6 @@ st.markdown("""
     }
     [data-testid="stChatMessage"]:nth-child(even) {
         background-color: #2A2B2E !important;
-    }
-
-    /* Идеально круглая кнопка записи голоса */
-    div[data-testid="stAudioInput"] {
-        width: 80px !important;
-        height: 80px !important;
-        min-width: 80px !important;
-        min-height: 80px !important;
-        max-width: 80px !important;
-        max-height: 80px !important;
-        border-radius: 50% !important;
-        border-radius: 9999px !important;
-        margin: 15px auto !important;
-        padding: 0 !important;
-        background-color: #0B57D0 !important;
-        border: 3px solid #1A73E8 !important;
-        box-shadow: 0 6px 16px rgba(11, 87, 208, 0.4) !important;
-        position: relative !important;
-        overflow: hidden !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        transition: all 0.3s ease !important;
-    }
-
-    div[data-testid="stAudioInput"]:hover {
-        background-color: #1B6EF3 !important;
-        border-color: #A8C7FA !important;
-        transform: scale(1.08);
-    }
-
-    div[data-testid="stAudioInput"] * {
-        background-color: transparent !important;
-        border: none !important;
-        color: transparent !important;
-        font-size: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        box-shadow: none !important;
-    }
-
-    div[data-testid="stAudioInput"] svg {
-        position: absolute !important;
-        top: 50% !important;
-        left: 50% !important;
-        transform: translate(-50%, -50%) !important;
-        width: 32px !important;
-        height: 32px !important;
-        fill: #FFFFFF !important;
-        color: #FFFFFF !important;
-        z-index: 10 !important;
     }
 
     .stChatInputContainer textarea {
@@ -204,138 +141,16 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ------------------ БОКОВАЯ ПАНЕЛЬ (SIDEBAR) ------------------
-st.sidebar.title("⚙️ Инструменты Васи")
+# ------------------ БОКОВАЯ ПАНЕЛЬ ------------------
+st.sidebar.title("⚙️ Меню Васи")
 
-selected_mode = st.sidebar.radio(
-    "Режим работы:",
-    ["⚡ Скальпинг / Быстрый сигнал", "🧠 Обучение и аналитика"],
-    index=0
-)
-
-with st.sidebar.expander("📖 Инструкция по эксплуатации", expanded=False):
+with st.sidebar.expander("📖 О помощнике", expanded=True):
     st.markdown("""
-    ### 🤖 Руководство пользователя "Вася AI"
-    
-    **1. Режимы работы:** Скальпинг или Обучение.
-    **2. Индикаторы:** Быстрый запрос разбора индикаторов.
-    **3. Риск-менеджмент:** Расчет лота и Мартингейла.
-    **4. Котировки и новости:** Онлайн цены и High Impact новости.
-    **5. Голос:** Круглая кнопка записи и озвучка ответов.
+    **Вася AI** — ваш универсальный интеллектуальный помощник. 
+    Поможет в написании кода, решении сложных задач, анализе текстов и любых повседневных вопросах.
     """)
 
-quick_prompt_clicked = None
-with st.sidebar.expander("📉 Выбор индикаторов и вопросов", expanded=False):
-    indicator_list = [
-        "RSI + MACD",
-        "RSI (Relative Strength Index)",
-        "MACD",
-        "Bollinger Bands (Полосы Боллинджера)",
-        "Stochastic Oscillator (Стохастик)",
-        "EMA / SMA (Скользящие средние)",
-        "Fibonacci Retracement (Фибоначчи)",
-        "Свой индикатор..."
-    ]
-    selected_indicator = st.selectbox("Выберите индикатор:", indicator_list)
-    
-    if selected_indicator == "Свой индикатор...":
-        custom_ind = st.text_input("Введите название индикатора:", "Pivot Points")
-        target_ind = custom_ind
-    else:
-        target_ind = selected_indicator
-        
-    if st.button("💡 Запросить разбор индикатора", use_container_width=True):
-        quick_prompt_clicked = (
-            f"Расскажи подробно, как использовать индикатор '{target_ind}': "
-            f"какие параметры лучше выбрать для скальпинга и бинарных опционов, "
-            f"как правильно находить точки входа (Call/Put) и избегать ложных сигналов."
-        )
-
-    st.markdown("---")
-    if st.button("📊 Оцени тренд на графике", use_container_width=True):
-        quick_prompt_clicked = "Оцени тренд на графике и определи ключевые уровни"
-    if st.button("🛡️ Правила депозита", use_container_width=True):
-        quick_prompt_clicked = "Расскажи основные правила управления депозитом и риск-менеджмента"
-
-with st.sidebar.expander("🧮 Калькулятор риска и Мартингейла", expanded=False):
-    deposit = st.number_input("Ваш депозит ($)", min_value=10.0, value=1000.0, step=50.0)
-    risk_pct = st.number_input("Риск на 1-ю сделку (%)", min_value=0.5, max_value=20.0, value=2.0, step=0.5)
-    martingale_mult = st.number_input("Коэффициент Мартингейла", min_value=1.0, max_value=3.0, value=2.0, step=0.1)
-    max_steps = st.slider("Число перекрытий (шагов)", min_value=1, max_value=6, value=3)
-
-    initial_trade = deposit * (risk_pct / 100.0)
-    st.write(f"**1-я сделка:** ${initial_trade:.2f}")
-
-    current_step_amount = initial_trade
-    total_risk = 0.0
-
-    for step in range(1, max_steps + 1):
-        total_risk += current_step_amount
-        st.text(f"Шаг {step}: ${current_step_amount:.2f} (Сумма: ${total_risk:.2f})")
-        current_step_amount *= martingale_mult
-
-    risk_of_depo = (total_risk / deposit) * 100.0
-    if risk_of_depo > 50:
-        st.error(f"⚠️ Общий риск: {risk_of_depo:.1f}% от депозита!")
-    else:
-        st.success(f"✅ Общий риск: {risk_of_depo:.1f}% от депозита")
-
-with st.sidebar.expander("📊 Котировки рынка в реальном времени", expanded=True):
-    if yf is not None:
-        try:
-            quote_tickers = {
-                "EUR/USD": "EURUSD=X",
-                "GBP/USD": "GBPUSD=X",
-                "USD/JPY": "USDJPY=X",
-                "BTC/USD": "BTC-USD"
-            }
-            for name, symbol in quote_tickers.items():
-                t = yf.Ticker(symbol)
-                hist = t.history(period="2d")
-                if not hist.empty and len(hist) >= 1:
-                    curr_price = hist['Close'].iloc[-1]
-                    prev_close = hist['Close'].iloc[-2] if len(hist) >= 2 else curr_price
-                    change_pct = ((curr_price - prev_close) / prev_close) * 100
-                    color = "#4CAF50" if change_pct >= 0 else "#F44336"
-                    sign = "+" if change_pct >= 0 else ""
-                    st.markdown(f"**{name}**: `{curr_price:.4f}` <span style='color:{color}; font-weight:600;'>({sign}{change_pct:.2f}%)</span>", unsafe_allow_html=True)
-                else:
-                    st.text(f"{name}: Нет данных")
-        except Exception:
-            st.caption("Котировки временно недоступны")
-    else:
-        st.caption("Модуль yfinance не загружен")
-
-with st.sidebar.expander("📅 Новости и Экономический календарь", expanded=False):
-    st.caption("Ключевые события и High Impact новости")
-    news_loaded = False
-
-    if yf is not None:
-        try:
-            major_tickers = ["EURUSD=X", "GBPUSD=X", "USDJPY=X", "AUDUSD=X", "USDCAD=X"]
-            all_news = []
-            for t in major_tickers:
-                pair_clean = t.replace("=X", "")
-                pair_formatted = f"{pair_clean[:3]}/{pair_clean[3:]}"
-                ticker = yf.Ticker(t)
-                news_items = ticker.news
-                if news_items:
-                    for item in news_items[:2]:
-                        title = item.get("title", "Новость рынков")
-                        publisher = item.get("publisher", "Yahoo Finance")
-                        all_news.append((pair_formatted, title, publisher))
-
-            if all_news:
-                for pair, title, publisher in all_news[:5]:
-                    st.markdown(f"🐂🐂🐂 **[{pair}]** **[High Impact]** {title} _({publisher})_")
-                news_loaded = True
-        except Exception:
-            pass
-
-    if not news_loaded:
-        st.info("Мониторинг рынков активен.")
-
-with st.sidebar.expander("💾 Скачать историю сессий", expanded=False):
+with st.sidebar.expander("💾 Управление историей", expanded=False):
     messages_data = load_history()
     if messages_data:
         txt_output = ""
@@ -362,30 +177,23 @@ with st.sidebar.expander("💾 Скачать историю сессий", expa
     else:
         st.caption("История сообщений пока пуста.")
 
-with st.sidebar.expander("📲 Связь", expanded=False):
+with st.sidebar.expander("📲 Связь с разработчиком", expanded=False):
     st.markdown("### 💬 Официальный Telegram")
-    st.link_button("✈️ Перейти в @T_CLUB_OFFICIAL", "https://vasya-ai-3ysq2fuzc6eaphvekbtf4e.streamlit.app/~/+/url?id=1", use_container_width=True)
+    st.link_button("✈️ Перейти в канал", "https://t.me", use_container_width=True)
 
 # ------------------ ГЛАВНЫЙ ЭКРАН ------------------
 st.title("✨ Вася AI")
 
 is_auto_voice = st.toggle("🔊 Авто-озвучка ответов", value=True, key="auto_voice_toggle")
 
-if "Скальпинг" in selected_mode:
-    mode_instruction = "Режим: Скальпинг. Отвечай предельно кратко, чётко, давай сразу суть, уровни и сигнал (Call/Put), без долгих теорий."
-else:
-    mode_instruction = "Режим: Обучение и аналитика. Отвечай подробно, развёрнуто, объясняй причины движения цены, индикаторы и логику."
-
 SYSTEM_PROMPT = {
     "role": "system",
     "content": (
-        "Тебя зовут Вася. "
-        "Ты — эксперт, трейдер и аналитик финансовых рынков и бинарных опционов.\n"
-        f"{mode_instruction}\n"
-        "Ты подробно знаешь технический и свечной анализ, индикаторы, риск-менеджмент и стратегии.\n"
-        "В обычных ответах и приветствиях НЕ обращайся к пользователю словом 'хозяин'. "
-        "На приветствие отвечай просто: 'Привет! Я Вася.'. "
-        "На любые вопросы про то, кто тебя создал, разработал, придумал, чей ты или кто твой хозяин — всегда строго и кратко отвечай: 'Олег Арчаков.'"
+        "Тебя зовут Вася. Ты — умный, универсальный и высокоинтеллектуальный AI-помощник, "
+        "способный решать любые задачи: писать и отлаживать код, анализировать тексты, отвечать на сложные вопросы, "
+        "помогать в учебе, творчестве, программировании и повседневных делах.\n"
+        "Общайся вежливо, грамотно, по делу, без лишней воды. "
+        "На любые вопросы о том, кто тебя создал, разработал, придумал или чей ты — всегда строго и кратко отвечай: 'Олег Арчаков'."
     )
 }
 
@@ -396,39 +204,45 @@ if "show_file" not in st.session_state:
 if "show_cam" not in st.session_state:
     st.session_state.show_cam = False
 
-# Живой и выразительный голос Васи
+# Функция озвучки с мгновенной отменом предыдущей речи (чтобы Вася сразу затыкался)
 def speak_in_browser(text):
     clean_text = json.dumps(text)
     js_code = f"""
         <script>
-            function playVoice() {{
-                if (!('speechSynthesis' in window)) return;
-                window.speechSynthesis.cancel();
-                var msg = new SpeechSynthesisUtterance({clean_text});
-                msg.lang = 'ru-RU';
-                msg.rate = 1.0;   // Естественная разговорная скорость
-                msg.pitch = 1.08; // Более живой, теплый и выразительный тон
-
-                var voices = window.speechSynthesis.getVoices();
-                var ruVoices = voices.filter(function(v) {{ return v.lang.includes('ru') || v.lang.includes('RU'); }});
+            if ('speechSynthesis' in window) {{
+                window.speechSynthesis.cancel(); // Сразу глушим любую предыдущую речь
                 
-                var bestVoice = ruVoices.find(function(v) {{
-                    var name = v.name.toLowerCase();
-                    return name.includes('natural') || name.includes('google') || name.includes('microsoft') || name.includes('premium') || name.includes('elena') || name.includes('daria') || name.includes('pavel');
-                }}) || ruVoices[0];
+                function playVoice() {{
+                    var msg = new SpeechSynthesisUtterance({clean_text});
+                    msg.lang = 'ru-RU';
+                    msg.rate = 1.0;
+                    msg.pitch = 1.05;
 
-                if (bestVoice) {{ msg.voice = bestVoice; }}
-                window.speechSynthesis.speak(msg);
-            }}
+                    var voices = window.speechSynthesis.getVoices();
+                    var ruVoices = voices.filter(function(v) {{ return v.lang.includes('ru') || v.lang.includes('RU'); }});
+                    
+                    var bestVoice = ruVoices.find(function(v) {{
+                        var name = v.name.toLowerCase();
+                        return name.includes('natural') || name.includes('google') || name.includes('microsoft') || name.includes('elena') || name.includes('daria') || name.includes('pavel');
+                    }}) || ruVoices[0];
 
-            if (window.speechSynthesis.getVoices().length !== 0) {{
-                playVoice();
-            }} else {{
-                window.speechSynthesis.onvoiceschanged = playVoice;
+                    if (bestVoice) {{ msg.voice = bestVoice; }}
+                    window.speechSynthesis.speak(msg);
+                }}
+
+                if (window.speechSynthesis.getVoices().length !== 0) {{
+                    playVoice();
+                }} else {{
+                    window.speechSynthesis.onvoiceschanged = playVoice;
+                }}
             }}
         </script>
     """
     components.html(js_code, height=0)
+
+def stop_speech():
+    # Экстренный сброс речи через JS при начале нового ввода
+    components.html("<script>if('speechSynthesis' in window) { window.speechSynthesis.cancel(); }</script>", height=0)
 
 def is_image_prompt(prompt_text):
     keywords = ["нарисуй", "сгенерируй фото", "покажи фото", "создай картинку", "нарисуй картинку", "сгенерируй картинку"]
@@ -451,11 +265,12 @@ def is_greeting(prompt_text):
     t = prompt_text.lower().strip()
     return any(t == g or t.startswith(g + " ") for g in greetings)
 
-# Вывод истории сообщений (кнопка прослушивания СТРОГО НАД текстом)
+# Вывод истории сообщений
 for idx, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"]):
         btn_label = "🔊 Прослушать меня" if message["role"] == "user" else "🔊 Прослушать Васю"
         if st.button(btn_label, key=f"replay_{idx}"):
+            stop_speech()
             if message.get("content"):
                 speak_in_browser(message["content"])
 
@@ -471,7 +286,8 @@ st.markdown("---")
 col_clear, col_file, col_cam = st.columns([1, 1, 1])
 
 with col_clear:
-    if st.button("Очистить", use_container_width=True):
+    if st.button("Очистить чат", use_container_width=True):
+        stop_speech()
         clear_db()
         st.session_state.messages = []
         st.session_state.show_file = False
@@ -494,10 +310,10 @@ uploaded_file = None
 camera_photo = None
 
 if st.session_state.show_file:
-    uploaded_file = st.file_uploader("Выберите изображение из памяти", type=["jpg", "jpeg", "png"], key="bottom_file")
+    uploaded_file = st.file_uploader("Выберите файл/изображение", type=["jpg", "jpeg", "png", "txt", "pdf"], key="bottom_file")
 
 if st.session_state.show_cam:
-    camera_photo = st.camera_input("Сделать фото с веб-камеры", key="bottom_cam")
+    camera_photo = st.camera_input("Сделать фото", key="bottom_cam")
 
 image_to_process = camera_photo or uploaded_file
 
@@ -515,16 +331,20 @@ audio_value = st.audio_input("Голосовой ввод", key="gemini_mic", la
 
 voice_prompt = None
 if audio_value:
+    stop_speech() # Прерываем речь при записи нового голоса
     with st.spinner("Распознаю голос..."):
         voice_prompt = transcribe_audio(audio_value.read())
         if not voice_prompt:
             st.warning("Не удалось распознать речь.")
 
-text_prompt = st.chat_input("Спросите Васю...")
-prompt = quick_prompt_clicked or voice_prompt or text_prompt
+text_prompt = st.chat_input("Спросите Васю о чем угодно...")
+if text_prompt:
+    stop_speech() # Прерываем речь при вводе текста
+
+prompt = voice_prompt or text_prompt
 
 if image_to_process and not prompt:
-    prompt = "Проанализируй данный график/картинку. Укажи тренд, уровни поддержки и сопротивления и сделку (Call/Put)."
+    prompt = "Опиши и проанализируй загруженное изображение."
 
 if prompt:
     save_message("user", prompt)
@@ -532,15 +352,19 @@ if prompt:
     
     with st.chat_message("user"):
         if st.button("🔊 Прослушать меня", key=f"replay_new_{len(st.session_state.messages)-1}"):
+            stop_speech()
             speak_in_browser(prompt)
         st.markdown(prompt)
         if image_to_process:
-            st.image(image_to_process, caption="Загруженное изображение", use_container_width=True)
+            st.image(image_to_process, caption="Загруженный файл", use_container_width=True)
 
     with st.chat_message("assistant"):
+        stop_speech() # Обязательно глушим предыдущий ответ при генерации нового
+
         if is_creator_prompt(prompt):
             reply_text = "Олег Арчаков."
             if st.button("🔊 Прослушать Васю", key=f"replay_resp_{len(st.session_state.messages)-1}"):
+                stop_speech()
                 speak_in_browser(reply_text)
             st.markdown(reply_text)
             if is_auto_voice:
@@ -549,8 +373,9 @@ if prompt:
             st.session_state.messages.append({"role": "assistant", "content": reply_text})
 
         elif is_greeting(prompt):
-            reply_text = "Привет! Я Вася."
+            reply_text = "Привет! Чем я могу помочь?"
             if st.button("🔊 Прослушать Васю", key=f"replay_resp_{len(st.session_state.messages)-1}"):
+                stop_speech()
                 speak_in_browser(reply_text)
             st.markdown(reply_text)
             if is_auto_voice:
@@ -559,11 +384,12 @@ if prompt:
             st.session_state.messages.append({"role": "assistant", "content": reply_text})
 
         elif is_image_prompt(prompt):
-            with st.spinner("Рисую картинку..."):
+            with st.spinner("Генерирую изображение..."):
                 encoded_prompt = urllib.parse.quote(prompt)
                 image_url = f"https://pollinations.ai/p/{encoded_prompt}?width=1024&height=1024&model=flux&seed=42"
-                reply_text = "Вот картинка, которую вы просили!"
+                reply_text = "Вот изображение по вашему запросу:"
                 if st.button("🔊 Прослушать Васю", key=f"replay_resp_{len(st.session_state.messages)-1}"):
+                    stop_speech()
                     speak_in_browser(reply_text)
                 st.markdown(reply_text)
                 st.image(image_url, use_container_width=True)
@@ -573,14 +399,15 @@ if prompt:
                 st.session_state.messages.append({"role": "assistant", "content": reply_text, "image_url": image_url})
 
         elif is_video_prompt(prompt):
-            with st.spinner("Создаю видео..."):
+            with st.spinner("Создаю визуализацию..."):
                 encoded_prompt = urllib.parse.quote(prompt)
                 video_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=flux&nologo=true"
-                reply_text = "Вот сгенерированный видеофрагмент!"
+                reply_text = "Вот сгенерированный визуальный фрагмент:"
                 if st.button("🔊 Прослушать Васю", key=f"replay_resp_{len(st.session_state.messages)-1}"):
+                    stop_speech()
                     speak_in_browser(reply_text)
                 st.markdown(reply_text)
-                st.image(video_url, caption="Сгенерированная анимация")
+                st.image(video_url, caption="Результат")
                 if is_auto_voice:
                     speak_in_browser(reply_text)
                 save_message("assistant", reply_text, video_url=video_url)
@@ -590,7 +417,7 @@ if prompt:
             full_response = ""
             success = False
             
-            # Динамически получаем список доступных моделей с сервера Groq
+            # Динамически получаем модели с сервера Groq
             dynamic_models = []
             try:
                 models_list = client.models.list()
@@ -598,7 +425,6 @@ if prompt:
             except Exception:
                 pass
 
-            # Объединяем полученные с сервера модели с надежным списком резервных
             candidate_models = dynamic_models + [
                 "llama-3.3-70b-versatile",
                 "llama-3.1-8b-instant",
@@ -607,7 +433,7 @@ if prompt:
             ]
 
             try:
-                recent_messages = st.session_state.messages[-6:]
+                recent_messages = st.session_state.messages[-10:]
                 messages_to_send = [SYSTEM_PROMPT] + [
                     {"role": m["role"], "content": m["content"]}
                     for m in recent_messages if "content" in m
@@ -618,7 +444,7 @@ if prompt:
                         completion = client.chat.completions.create(
                             model=model_name,
                             messages=messages_to_send,
-                            temperature=0.3,
+                            temperature=0.5,
                             stream=True
                         )
                         for chunk in completion:
@@ -630,11 +456,12 @@ if prompt:
                         continue
                 
                 if not success:
-                    full_response = "❌ Ошибка: Неверный API-ключ Groq или ключ не задан в Streamlit Secrets. Перейдите в настройки своего приложения на Streamlit Cloud -> Settings -> Secrets и добавьте ключ в формате:\nGROQ_API_KEY = \"gsk_...\""
+                    full_response = "❌ Ошибка: Неверный API-ключ Groq или ключ не задан в Streamlit Secrets. Проверьте настройки в Streamlit Cloud -> Settings -> Secrets."
             except Exception as e:
                 full_response = f"Ошибка обращения к Groq API: {e}"
 
             if st.button("🔊 Прослушать Васю", key=f"replay_resp_final_{len(st.session_state.messages)-1}"):
+                stop_speech()
                 speak_in_browser(full_response)
             st.markdown(full_response)
             
