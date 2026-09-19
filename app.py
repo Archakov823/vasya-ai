@@ -19,6 +19,20 @@ except ImportError:
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "ВАШ_API_КЛЮЧ_ЕСЛИ_НУЖНО_ЛОКАЛЬНО")
 client = Groq(api_key=GROQ_API_KEY)
 
+# Автоматический выбор доступной модели через Groq API (избавляет от ошибок 404/400)
+try:
+    models_response = client.models.list()
+    model_ids = [m.id for m in models_response.data]
+    preferred = [m for m in model_ids if "llama" in m.lower() and "guard" not in m.lower() and "vision" not in m.lower()]
+    if preferred:
+        TEXT_MODEL = preferred[0]
+    elif model_ids:
+        TEXT_MODEL = model_ids[0]
+    else:
+        TEXT_MODEL = "llama-3.1-8b-instant"
+except Exception:
+    TEXT_MODEL = "llama-3.1-8b-instant"
+
 # Настройка базы данных SQLite
 DB_NAME = "chat_history.db"
 
@@ -367,9 +381,6 @@ with st.sidebar.expander("📲 Связь", expanded=False):
 st.title("✨ Вася AI")
 
 is_auto_voice = st.toggle("🔊 Авто-озвучка ответов", value=True, key="auto_voice_toggle")
-
-# Самая универсальная и доступная модель Groq
-TEXT_MODEL = "llama-3.1-8b-instant"
 
 if "Скальпинг" in selected_mode:
     mode_instruction = "Режим: Скальпинг. Отвечай предельно кратко, чётко, давай сразу суть, уровни и сигнал (Call/Put), без долгих теорий."
