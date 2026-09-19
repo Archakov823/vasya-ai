@@ -15,8 +15,7 @@ try:
 except ImportError:
     yf = None
 
-# Инициализация Groq API (ключ берётся из секретов Streamlit Cloud или заменяется строкой)
-# Получить бесплатный ключ можно на https://console.groq.com
+# Инициализация Groq API
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "ВАШ_API_КЛЮЧ_ЕСЛИ_НУЖНО_ЛОКАЛЬНО")
 client = Groq(api_key=GROQ_API_KEY)
 
@@ -119,10 +118,16 @@ st.markdown("""
         background-color: #2A2B2E !important;
     }
 
+    /* Идеально круглая кнопка записи голоса */
     div[data-testid="stAudioInput"] {
-        width: 85px !important;
-        height: 85px !important;
+        width: 80px !important;
+        height: 80px !important;
+        min-width: 80px !important;
+        min-height: 80px !important;
+        max-width: 80px !important;
+        max-height: 80px !important;
         border-radius: 50% !important;
+        border-radius: 9999px !important;
         margin: 15px auto !important;
         padding: 0 !important;
         background-color: #0B57D0 !important;
@@ -130,6 +135,9 @@ st.markdown("""
         box-shadow: 0 6px 16px rgba(11, 87, 208, 0.4) !important;
         position: relative !important;
         overflow: hidden !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
         transition: all 0.3s ease !important;
     }
 
@@ -154,8 +162,8 @@ st.markdown("""
         top: 50% !important;
         left: 50% !important;
         transform: translate(-50%, -50%) !important;
-        width: 36px !important;
-        height: 36px !important;
+        width: 32px !important;
+        height: 32px !important;
         fill: #FFFFFF !important;
         color: #FFFFFF !important;
         z-index: 10 !important;
@@ -202,35 +210,17 @@ selected_mode = st.sidebar.radio(
     index=0
 )
 
-# 1. ПАПКА: ИНСТРУКЦИЯ ПО ЭКСПЛУАТАЦИИ
 with st.sidebar.expander("📖 Инструкция по эксплуатации", expanded=False):
     st.markdown("""
     ### 🤖 Руководство пользователя "Вася AI"
     
-    **1. Переключение режимов торговли:**
-    - **⚡ Скальпинг:** Краткие ответы, сразу сигналы (*Call/Put*) и ключевые уровни.
-    - **🧠 Обучение и аналитика:** Развёрнутый анализ с детальным объяснением индикаторов.
-
-    **2. Разбор индикаторов:**
-    - Выберите любой индикатор из списка или укажите свой в поле *"Свой индикатор..."*.
-    - Нажмите **💡 Запросить разбор**, чтобы получить параметры и точки входа.
-
-    **3. Управление риском и Мартингейл:**
-    - Задайте депозит, % риска и число перекрытий.
-    - Калькулятор автоматически покажет размер каждого шага и предупредит при опасном риске.
-
-    **4. Анализ графиков:**
-    - Нажмите **Файл** или **Камера** внизу экрана для загрузки скриншота графика.
-
-    **5. Голосовые функции и синтез:**
-    - Используйте синюю кнопку микрофона для голосовых вопросов.
-    - Включите переключатель **🔊 Авто-озвучка ответов** для автоматической речи Васи.
-
-    **6. Генерация визуала:**
-    - Отправьте фразы со словами *"нарисуй..."* или *"создай видео..."* для получения картинок/анимаций.
+    **1. Режимы работы:** Скальпинг или Обучение.
+    **2. Индикаторы:** Быстрый запрос разбора индикаторов.
+    **3. Риск-менеджмент:** Расчет лота и Мартингейла.
+    **4. Графики:** Анализ скриншотов.
+    **5. Голос:** Круглая кнопка записи и озвучка ответов.
     """)
 
-# 2. Выбор индикатора
 quick_prompt_clicked = None
 with st.sidebar.expander("📉 Выбор индикаторов и вопросов", expanded=False):
     indicator_list = [
@@ -264,7 +254,6 @@ with st.sidebar.expander("📉 Выбор индикаторов и вопрос
     if st.button("🛡️ Правила депозита", use_container_width=True):
         quick_prompt_clicked = "Расскажи основные правила управления депозитом и риск-менеджмента"
 
-# 3. Калькулятор риск-менеджмента и Мартингейла
 with st.sidebar.expander("🧮 Калькулятор риска и Мартингейла", expanded=False):
     deposit = st.number_input("Ваш депозит ($)", min_value=10.0, value=1000.0, step=50.0)
     risk_pct = st.number_input("Риск на 1-ю сделку (%)", min_value=0.5, max_value=20.0, value=2.0, step=0.5)
@@ -288,7 +277,6 @@ with st.sidebar.expander("🧮 Калькулятор риска и Мартин
     else:
         st.success(f"✅ Общий риск: {risk_of_depo:.1f}% от депозита")
 
-# 4. Новости
 with st.sidebar.expander("📅 Новости и Экономический календарь", expanded=False):
     st.caption("Ключевые события и High Impact новости")
     news_loaded = False
@@ -309,7 +297,6 @@ with st.sidebar.expander("📅 Новости и Экономический ка
     if not news_loaded:
         st.info("Мониторинг рынков активен.")
 
-# 5. Экспорт истории
 with st.sidebar.expander("💾 Скачать историю сессий", expanded=False):
     messages_data = load_history()
     if messages_data:
@@ -337,11 +324,9 @@ with st.sidebar.expander("💾 Скачать историю сессий", expa
     else:
         st.caption("История сообщений пока пуста.")
 
-# 6. ПАПКА: СВЯЗЬ
 with st.sidebar.expander("📲 Связь", expanded=False):
     st.markdown("### 💬 Официальный Telegram")
-    st.markdown("Наш канал и поддержка:")
-    st.link_button("✈️ Перейти в @T_CLUB_OFFICIAL", "https://t.me/T_CLUB_OFFICIAL", use_container_width=True)
+    st.link_button("✈️ Перейти в @T_CLUB_OFFICIAL", "url?id=1", use_container_width=True)
 
 # ------------------ ГЛАВНЫЙ ЭКРАН ------------------
 st.title("✨ Вася AI")
@@ -349,7 +334,7 @@ st.title("✨ Вася AI")
 is_auto_voice = st.toggle("🔊 Авто-озвучка ответов", value=True, key="auto_voice_toggle")
 
 # Рабочая модель Groq
-TEXT_MODEL = "openai/gpt-oss-20b"
+TEXT_MODEL = "llama-3.1-8b-instant"
 
 if "Скальпинг" in selected_mode:
     mode_instruction = "Режим: Скальпинг. Отвечай предельно кратко, чётко, давай сразу суть, уровни и сигнал (Call/Put), без долгих теорий."
@@ -376,6 +361,7 @@ if "show_file" not in st.session_state:
 if "show_cam" not in st.session_state:
     st.session_state.show_cam = False
 
+# Улучшенная функция синтеза речи (приятный, мягкий и естественный голос)
 def speak_in_browser(text):
     clean_text = json.dumps(text)
     js_code = f"""
@@ -385,15 +371,15 @@ def speak_in_browser(text):
                 window.speechSynthesis.cancel();
                 var msg = new SpeechSynthesisUtterance({clean_text});
                 msg.lang = 'ru-RU';
-                msg.rate = 0.95;
-                msg.pitch = 0.98;
+                msg.rate = 0.98;   // Более плавная и комфортная скорость
+                msg.pitch = 1.02;  // Чуть более теплый и живой тон
 
                 var voices = window.speechSynthesis.getVoices();
-                var ruVoices = voices.filter(function(v) {{ return v.lang.includes('ru'); }});
+                var ruVoices = voices.filter(function(v) {{ return v.lang.includes('ru') || v.lang.includes('RU'); }});
                 
                 var bestVoice = ruVoices.find(function(v) {{
                     var name = v.name.toLowerCase();
-                    return name.includes('natural') || name.includes('google') || name.includes('premium');
+                    return name.includes('natural') || name.includes('google') || name.includes('microsoft') || name.includes('premium') || name.includes('elena') || name.includes('daria') || name.includes('pavel');
                 }}) || ruVoices[0];
 
                 if (bestVoice) {{ msg.voice = bestVoice; }}
@@ -425,14 +411,16 @@ def is_creator_prompt(prompt_text):
     ]
     return any(kw in prompt_text.lower() for kw in keywords)
 
+# Вывод истории сообщений (кнопка прослушивания СТРОГО НАД текстом)
 for idx, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"]):
-        if message.get("content"):
-            btn_label = "🔊 Прослушать меня" if message["role"] == "user" else "🔊 Прослушать Васю"
-            if st.button(btn_label, key=f"replay_{idx}"):
+        btn_label = "🔊 Прослушать меня" if message["role"] == "user" else "🔊 Прослушать Васю"
+        if st.button(btn_label, key=f"replay_{idx}"):
+            if message.get("content"):
                 speak_in_browser(message["content"])
 
-        st.markdown(message["content"])
+        if message.get("content"):
+            st.markdown(message["content"])
         if "image_url" in message:
             st.image(message["image_url"], use_container_width=True)
         if "video_url" in message:
@@ -503,6 +491,8 @@ if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
     
     with st.chat_message("user"):
+        if st.button("🔊 Прослушать меня", key=f"replay_new_{len(st.session_state.messages)-1}"):
+            speak_in_browser(prompt)
         st.markdown(prompt)
         if image_to_process:
             st.image(image_to_process, caption="Загруженное изображение", use_container_width=True)
@@ -510,6 +500,8 @@ if prompt:
     with st.chat_message("assistant"):
         if is_creator_prompt(prompt):
             reply_text = "Олег Арчаков."
+            if st.button("🔊 Прослушать Васю", key=f"replay_resp_{len(st.session_state.messages)-1}"):
+                speak_in_browser(reply_text)
             st.markdown(reply_text)
             if is_auto_voice:
                 speak_in_browser(reply_text)
@@ -521,6 +513,8 @@ if prompt:
                 encoded_prompt = urllib.parse.quote(prompt)
                 image_url = f"https://pollinations.ai/p/{encoded_prompt}?width=1024&height=1024&model=flux&seed=42"
                 reply_text = "Вот картинка, которую вы просили!"
+                if st.button("🔊 Прослушать Васю", key=f"replay_resp_{len(st.session_state.messages)-1}"):
+                    speak_in_browser(reply_text)
                 st.markdown(reply_text)
                 st.image(image_url, use_container_width=True)
                 if is_auto_voice:
@@ -533,6 +527,8 @@ if prompt:
                 encoded_prompt = urllib.parse.quote(prompt)
                 video_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=flux&nologo=true"
                 reply_text = "Вот сгенерированный видеофрагмент!"
+                if st.button("🔊 Прослушать Васю", key=f"replay_resp_{len(st.session_state.messages)-1}"):
+                    speak_in_browser(reply_text)
                 st.markdown(reply_text)
                 st.image(video_url, caption="Сгенерированная анимация")
                 if is_auto_voice:
@@ -541,9 +537,7 @@ if prompt:
                 st.session_state.messages.append({"role": "assistant", "content": reply_text, "video_url": video_url})
 
         else:
-            response_placeholder = st.empty()
             full_response = ""
-            
             try:
                 recent_messages = st.session_state.messages[-6:]
                 messages_to_send = [SYSTEM_PROMPT] + [
@@ -551,7 +545,6 @@ if prompt:
                     for m in recent_messages if "content" in m
                 ]
                 
-                # Запрос к облачному Groq API
                 completion = client.chat.completions.create(
                     model=TEXT_MODEL,
                     messages=messages_to_send,
@@ -562,15 +555,15 @@ if prompt:
                 for chunk in completion:
                     if chunk.choices[0].delta.content:
                         full_response += chunk.choices[0].delta.content
-                        response_placeholder.markdown(full_response + "▌")
-                
-                response_placeholder.markdown(full_response)
-                
-                if is_auto_voice:
-                    speak_in_browser(full_response)
-                
-                save_message("assistant", full_response)
-                st.session_state.messages.append({"role": "assistant", "content": full_response})
-                
             except Exception as e:
-                st.error(f"Ошибка обращения к Groq API: {e}. Проверьте ваш API-ключ.")
+                full_response = f"Ошибка обращения к Groq API: {e}"
+
+            if st.button("🔊 Прослушать Васю", key=f"replay_resp_final_{len(st.session_state.messages)-1}"):
+                speak_in_browser(full_response)
+            st.markdown(full_response)
+            
+            if is_auto_voice and "Ошибка обращения" not in full_response:
+                speak_in_browser(full_response)
+            
+            save_message("assistant", full_response)
+            st.session_state.messages.append({"role": "assistant", "content": full_response})
