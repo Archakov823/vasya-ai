@@ -368,8 +368,8 @@ st.title("✨ Вася AI")
 
 is_auto_voice = st.toggle("🔊 Авто-озвучка ответов", value=True, key="auto_voice_toggle")
 
-# Рабочая модель Groq (изменена на актуальную)
-TEXT_MODEL = "llama-3.3-70b-versatile"
+# Стабильная рабочая модель Groq
+TEXT_MODEL = "llama3-70b-8192"
 
 if "Скальпинг" in selected_mode:
     mode_instruction = "Режим: Скальпинг. Отвечай предельно кратко, чётко, давай сразу суть, уровни и сигнал (Call/Put), без долгих теорий."
