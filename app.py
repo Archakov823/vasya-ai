@@ -326,7 +326,7 @@ with st.sidebar.expander("💾 Скачать историю сессий", expa
 
 with st.sidebar.expander("📲 Связь", expanded=False):
     st.markdown("### 💬 Официальный Telegram")
-    st.link_button("✈️ Перейти в @T_CLUB_OFFICIAL", "url?id=1", use_container_width=True)
+    st.link_button("✈️ Перейти в @T_CLUB_OFFICIAL", "https://vasya-ai-3ysq2fuzc6eaphvekbtf4e.streamlit.app/~/+/url?id=1", use_container_width=True)
 
 # ------------------ ГЛАВНЫЙ ЭКРАН ------------------
 st.title("✨ Вася AI")
@@ -361,7 +361,7 @@ if "show_file" not in st.session_state:
 if "show_cam" not in st.session_state:
     st.session_state.show_cam = False
 
-# Улучшенная функция синтеза речи (приятный, мягкий и естественный голос)
+# Живой и выразительный голос Васи
 def speak_in_browser(text):
     clean_text = json.dumps(text)
     js_code = f"""
@@ -371,8 +371,8 @@ def speak_in_browser(text):
                 window.speechSynthesis.cancel();
                 var msg = new SpeechSynthesisUtterance({clean_text});
                 msg.lang = 'ru-RU';
-                msg.rate = 0.98;   // Более плавная и комфортная скорость
-                msg.pitch = 1.02;  // Чуть более теплый и живой тон
+                msg.rate = 1.0;   // Естественная разговорная скорость
+                msg.pitch = 1.08; // Более живой, теплый и выразительный тон
 
                 var voices = window.speechSynthesis.getVoices();
                 var ruVoices = voices.filter(function(v) {{ return v.lang.includes('ru') || v.lang.includes('RU'); }});
