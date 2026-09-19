@@ -217,7 +217,7 @@ with st.sidebar.expander("📖 Инструкция по эксплуатаци�
     **1. Режимы работы:** Скальпинг или Обучение.
     **2. Индикаторы:** Быстрый запрос разбора индикаторов.
     **3. Риск-менеджмент:** Расчет лота и Мартингейла.
-    **4. Графики:** Анализ скриншотов.
+    **4. Котировки и новости:** Онлайн цены и High Impact новости.
     **5. Голос:** Круглая кнопка записи и озвучка ответов.
     """)
 
@@ -276,6 +276,32 @@ with st.sidebar.expander("🧮 Калькулятор риска и Мартин
         st.error(f"⚠️ Общий риск: {risk_of_depo:.1f}% от депозита!")
     else:
         st.success(f"✅ Общий риск: {risk_of_depo:.1f}% от депозита")
+
+with st.sidebar.expander("📊 Котировки рынка в реальном времени", expanded=True):
+    if yf is not None:
+        try:
+            quote_tickers = {
+                "EUR/USD": "EURUSD=X",
+                "GBP/USD": "GBPUSD=X",
+                "USD/JPY": "USDJPY=X",
+                "BTC/USD": "BTC-USD"
+            }
+            for name, symbol in quote_tickers.items():
+                t = yf.Ticker(symbol)
+                hist = t.history(period="2d")
+                if not hist.empty and len(hist) >= 1:
+                    curr_price = hist['Close'].iloc[-1]
+                    prev_close = hist['Close'].iloc[-2] if len(hist) >= 2 else curr_price
+                    change_pct = ((curr_price - prev_close) / prev_close) * 100
+                    color = "#4CAF50" if change_pct >= 0 else "#F44336"
+                    sign = "+" if change_pct >= 0 else ""
+                    st.markdown(f"**{name}**: `{curr_price:.4f}` <span style='color:{color}; font-weight:600;'>({sign}{change_pct:.2f}%)</span>", unsafe_allow_html=True)
+                else:
+                    st.text(f"{name}: Нет данных")
+        except Exception:
+            st.caption("Котировки временно недоступны")
+    else:
+        st.caption("Модуль yfinance не загружен")
 
 with st.sidebar.expander("📅 Новости и Экономический календарь", expanded=False):
     st.caption("Ключевые события и High Impact новости")
@@ -342,8 +368,8 @@ st.title("✨ Вася AI")
 
 is_auto_voice = st.toggle("🔊 Авто-озвучка ответов", value=True, key="auto_voice_toggle")
 
-# Рабочая модель Groq
-TEXT_MODEL = "llama-3.1-8b-instant"
+# Рабочая модель Groq (изменена на актуальную)
+TEXT_MODEL = "llama-3.3-70b-versatile"
 
 if "Скальпинг" in selected_mode:
     mode_instruction = "Режим: Скальпинг. Отвечай предельно кратко, чётко, давай сразу суть, уровни и сигнал (Call/Put), без долгих теорий."
