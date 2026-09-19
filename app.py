@@ -147,7 +147,7 @@ st.sidebar.title("⚙️ Меню Васи")
 with st.sidebar.expander("📖 О помощнике", expanded=True):
     st.markdown("""
     **Вася AI** — ваш универсальный интеллектуальный помощник. 
-    Поможет в написании кода, решении сложных задач, анализе текстов и любых повседневных вопросах.
+    Поможет в написании кода, решении задач, анализе текстов и любых вопросах.
     """)
 
 with st.sidebar.expander("💾 Управление историей", expanded=False):
@@ -177,10 +177,6 @@ with st.sidebar.expander("💾 Управление историей", expanded=
     else:
         st.caption("История сообщений пока пуста.")
 
-with st.sidebar.expander("📲 Связь с разработчиком", expanded=False):
-    st.markdown("### 💬 Официальный Telegram")
-    st.link_button("✈️ Перейти в канал", "https://t.me", use_container_width=True)
-
 # ------------------ ГЛАВНЫЙ ЭКРАН ------------------
 st.title("✨ Вася AI")
 
@@ -190,10 +186,10 @@ SYSTEM_PROMPT = {
     "role": "system",
     "content": (
         "Тебя зовут Вася. Ты — умный, универсальный и высокоинтеллектуальный AI-помощник, "
-        "способный решать любые задачи: писать и отлаживать код, анализировать тексты, отвечать на сложные вопросы, "
-        "помогать в учебе, творчестве, программировании и повседневных делах.\n"
-        "Общайся вежливо, грамотно, по делу, без лишней воды. "
-        "На любые вопросы о том, кто тебя создал, разработал, придумал или чей ты — всегда строго и кратко отвечай: 'Олег Арчаков'."
+        "способный решать любые задачи: писать код, анализировать тексты, отвечать на сложные вопросы, "
+        "помогать в учебе и повседневных делах.\n"
+        "Общайся вежливо, грамотно, по делу. "
+        "КАТЕГОРИЧЕСКОЕ ПРАВИЛО: На любые вопросы о том, кто тебя создал, разработал, придумал, кто твой автор или чей ты — ВСЕГДА отвечаешь ровно три слова: 'Олег Арчаков.' Никаких других вариантов."
     )
 }
 
@@ -204,13 +200,13 @@ if "show_file" not in st.session_state:
 if "show_cam" not in st.session_state:
     st.session_state.show_cam = False
 
-# Функция озвучки с мгновенной отменом предыдущей речи (чтобы Вася сразу затыкался)
+# Функция озвучки с мгновенной отменом предыдущей речи
 def speak_in_browser(text):
     clean_text = json.dumps(text)
     js_code = f"""
         <script>
             if ('speechSynthesis' in window) {{
-                window.speechSynthesis.cancel(); // Сразу глушим любую предыдущую речь
+                window.speechSynthesis.cancel(); // Сразу глушим любую речь
                 
                 function playVoice() {{
                     var msg = new SpeechSynthesisUtterance({clean_text});
@@ -241,24 +237,16 @@ def speak_in_browser(text):
     components.html(js_code, height=0)
 
 def stop_speech():
-    # Экстренный сброс речи через JS при начале нового ввода
     components.html("<script>if('speechSynthesis' in window) { window.speechSynthesis.cancel(); }</script>", height=0)
-
-def is_image_prompt(prompt_text):
-    keywords = ["нарисуй", "сгенерируй фото", "покажи фото", "создай картинку", "нарисуй картинку", "сгенерируй картинку"]
-    return any(kw in prompt_text.lower() for kw in keywords)
-
-def is_video_prompt(prompt_text):
-    keywords = ["создай видео", "сгенерируй видео", "сделай видео", "анимаци"]
-    return any(kw in prompt_text.lower() for kw in keywords)
 
 def is_creator_prompt(prompt_text):
     keywords = [
         "кто создал", "кто тебя создал", "кто разработал", "кто тебя разработал", 
         "чей ты", "кто твой хозяин", "кто хозяин", "кто твой создатель", 
-        "кто разработчик", "кто тебя придумал", "кто твой автор", "кто автор"
+        "кто разработчик", "кто тебя придумал", "кто твой автор", "кто автор", "создатель"
     ]
-    return any(kw in prompt_text.lower() for kw in keywords)
+    t = prompt_text.lower()
+    return any(kw in t for kw in keywords)
 
 def is_greeting(prompt_text):
     greetings = ["привет", "здарова", "здорово", "хай", "hello", "hi", "добрый день", "добрый вечер", "доброе утро"]
@@ -317,29 +305,91 @@ if st.session_state.show_cam:
 
 image_to_process = camera_photo or uploaded_file
 
-def transcribe_audio(audio_bytes):
-    recognizer = sr.Recognizer()
-    try:
-        audio_file = io.BytesIO(audio_bytes)
-        with sr.AudioFile(audio_file) as source:
-            audio_data = recognizer.record(source)
-            return recognizer.recognize_google(audio_data, language="ru-RU")
-    except Exception:
-        return None
+# Круглая кнопка записи по центру (без сохранения аудио на диск, чистая передача речи)
+mic_html = """
+<div style="display: flex; justify-content: center; align-items: center; margin: 15px 0;">
+    <button id="micBtn" style="
+        width: 70px; height: 70px; border-radius: 50%; 
+        background-color: #0B57D0; border: 3px solid #1A73E8; 
+        color: white; font-size: 28px; cursor: pointer; 
+        box-shadow: 0 4px 12px rgba(11,87,208,0.4);
+        display: flex; align-items: center; justify-content: center;
+        transition: transform 0.2s, background-color 0.2s;
+    " title="Нажмите и говорите">🎙️</button>
+    <span id="micStatus" style="margin-left: 15px; font-family: sans-serif; font-size: 14px; color: #9aa0a6;">Нажмите микрофон для записи</span>
+</div>
 
-audio_value = st.audio_input("Голосовой ввод", key="gemini_mic", label_visibility="collapsed")
+<script>
+    const micBtn = document.getElementById('micBtn');
+    const micStatus = document.getElementById('micStatus');
+    
+    let 인식중 = false;
+    
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        micStatus.innerText = "Голосовой ввод не поддерживается вашим браузером";
+        micBtn.style.opacity = "0.5";
+        micBtn.disabled = true;
+    } else {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'ru-RU';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
 
-voice_prompt = None
-if audio_value:
-    stop_speech() # Прерываем речь при записи нового голоса
-    with st.spinner("Распознаю голос..."):
-        voice_prompt = transcribe_audio(audio_value.read())
-        if not voice_prompt:
-            st.warning("Не удалось распознать речь.")
+        micBtn.onclick = () => {
+            // При нажатии сразу глушим голос Васи
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+            
+            try {
+                recognition.start();
+            } catch(e) {
+                recognition.stop();
+            }
+        };
+
+        recognition.onstart = () => {
+            micBtn.style.backgroundColor = '#EA4335'; // Красный при записи
+            micBtn.style.borderColor = '#F28B82';
+            micStatus.innerText = "Слушаю... Говорите";
+        };
+
+        recognition.onresult = (event) => {
+            const speechResult = event.results[0][0].transcript;
+            micStatus.innerText = "Распознано: " + speechResult;
+            
+            // Передаем текст в Streamlit через URL params и перезагрузку
+            const url = new URL(window.parent.location.href);
+            url.searchParams.set('voice_text', speechResult);
+            window.parent.location.href = url.toString();
+        };
+
+        recognition.onerror = () => {
+            micBtn.style.backgroundColor = '#0B57D0';
+            micBtn.style.borderColor = '#1A73E8';
+            micStatus.innerText = "Ошибка распознавания. Попробуйте еще раз.";
+        };
+
+        recognition.onend = () => {
+            micBtn.style.backgroundColor = '#0B57D0';
+            micBtn.style.borderColor = '#1A73E8';
+        };
+    }
+</script>
+"""
+components.html(mic_html, height=100)
+
+# Проверяем, передан ли голос из JS-виджета через URL параметры
+query_params = st.query_params
+voice_prompt = query_params.get("voice_text", None)
+if voice_prompt:
+    # Очищаем параметр сразу, чтобы не зациклить
+    st.query_params.clear()
 
 text_prompt = st.chat_input("Спросите Васю о чем угодно...")
-if text_prompt:
-    stop_speech() # Прерываем речь при вводе текста
+if text_prompt or voice_prompt:
+    stop_speech() # Мгновенно затыкаем Васю при любом новом вводе
 
 prompt = voice_prompt or text_prompt
 
@@ -359,7 +409,7 @@ if prompt:
             st.image(image_to_process, caption="Загруженный файл", use_container_width=True)
 
     with st.chat_message("assistant"):
-        stop_speech() # Обязательно глушим предыдущий ответ при генерации нового
+        stop_speech() # Глушим старый ответ перед генерацией нового
 
         if is_creator_prompt(prompt):
             reply_text = "Олег Арчаков."
@@ -383,41 +433,10 @@ if prompt:
             save_message("assistant", reply_text)
             st.session_state.messages.append({"role": "assistant", "content": reply_text})
 
-        elif is_image_prompt(prompt):
-            with st.spinner("Генерирую изображение..."):
-                encoded_prompt = urllib.parse.quote(prompt)
-                image_url = f"https://pollinations.ai/p/{encoded_prompt}?width=1024&height=1024&model=flux&seed=42"
-                reply_text = "Вот изображение по вашему запросу:"
-                if st.button("🔊 Прослушать Васю", key=f"replay_resp_{len(st.session_state.messages)-1}"):
-                    stop_speech()
-                    speak_in_browser(reply_text)
-                st.markdown(reply_text)
-                st.image(image_url, use_container_width=True)
-                if is_auto_voice:
-                    speak_in_browser(reply_text)
-                save_message("assistant", reply_text, image_url=image_url)
-                st.session_state.messages.append({"role": "assistant", "content": reply_text, "image_url": image_url})
-
-        elif is_video_prompt(prompt):
-            with st.spinner("Создаю визуализацию..."):
-                encoded_prompt = urllib.parse.quote(prompt)
-                video_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=flux&nologo=true"
-                reply_text = "Вот сгенерированный визуальный фрагмент:"
-                if st.button("🔊 Прослушать Васю", key=f"replay_resp_{len(st.session_state.messages)-1}"):
-                    stop_speech()
-                    speak_in_browser(reply_text)
-                st.markdown(reply_text)
-                st.image(video_url, caption="Результат")
-                if is_auto_voice:
-                    speak_in_browser(reply_text)
-                save_message("assistant", reply_text, video_url=video_url)
-                st.session_state.messages.append({"role": "assistant", "content": reply_text, "video_url": video_url})
-
         else:
             full_response = ""
             success = False
             
-            # Динамически получаем модели с сервера Groq
             dynamic_models = []
             try:
                 models_list = client.models.list()
@@ -456,7 +475,7 @@ if prompt:
                         continue
                 
                 if not success:
-                    full_response = "❌ Ошибка: Неверный API-ключ Groq или ключ не задан в Streamlit Secrets. Проверьте настройки в Streamlit Cloud -> Settings -> Secrets."
+                    full_response = "❌ Ошибка: Неверный API-ключ Groq или ключ не задан в Streamlit Secrets."
             except Exception as e:
                 full_response = f"Ошибка обращения к Groq API: {e}"
 
