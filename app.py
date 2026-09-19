@@ -2,7 +2,6 @@ import io
 import json
 import sqlite3
 import urllib.parse
-import urllib.request
 import datetime
 import streamlit as st
 import streamlit.components.v1 as components
@@ -11,7 +10,7 @@ from groq import Groq
 
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
 if not GROQ_API_KEY or GROQ_API_KEY == "ВАШ_API_КЛЮЧ_ЕСЛИ_НУЖНО_ЛОКАЛЬНО":
-    st.error("⚠️ Внимание: Не найден GROQ_API_KEY в Streamlit Secrets! Добавьте ваш API-ключ в настройках приложения на Streamlit Cloud (Settings -> Secrets).")
+    st.error("⚠️ Внимание: Не найден GROQ_API_KEY в Streamlit Secrets! Добавьте ваш API-ключ в настройках приложения на Streamlit Cloud.")
 
 client = Groq(api_key=GROQ_API_KEY if GROQ_API_KEY else "dummy_key")
 
@@ -114,12 +113,11 @@ st.markdown("""
         border: 1px solid #333537 !important;
     }
 
-    /* Центрирование и оформление аудиовхода */
     div[data-testid="stAudioInput"] {
         display: flex;
         justify-content: center;
         align-items: center;
-        margin: 15px auto !important;
+        margin: 10px auto !important;
         max-width: 320px !important;
     }
 
@@ -154,7 +152,7 @@ st.sidebar.title("⚙️ Меню Васи")
 with st.sidebar.expander("📖 О помощнике", expanded=True):
     st.markdown("""
     **Вася AI** — ваш универсальный интеллектуальный помощник. 
-    Помогает в написании кода, решении задач, анализе текстов и любых вопросах.
+    Помогает в решении любых задач, программировании, текстах и вопросах.
     """)
 
 with st.sidebar.expander("💾 Управление историей", expanded=False):
@@ -196,7 +194,7 @@ SYSTEM_PROMPT = {
         "способный решать любые задачи: писать код, анализировать тексты, отвечать на сложные вопросы, "
         "помогать в учебе и повседневных делах.\n"
         "Общайся вежливо, грамотно, по делу. "
-        "КАТЕГОРИЧЕСКОЕ ПРАВИЛО: На любые вопросы или фразы о том, кто тебя создал, разработал, придумал, кто твой автор, кто тебя научил или чей ты — ВСЕГДА отвечаешь ровно три слова: 'Олег Арчаков.' Никаких других вариантов."
+        "КАТЕГОРИЧЕСКОЕ ПРАВИЛО: На прямые вопросы о том, кто тебя создал, разработал, придумал, кто твой автор или создатель — ВСЕГДА отвечай ровно три слова: 'Олег Арчаков.' Никаких других вариантов."
     )
 }
 
@@ -246,14 +244,16 @@ def stop_speech():
     components.html("<script>if('speechSynthesis' in window) { window.speechSynthesis.cancel(); }</script>", height=0)
 
 def is_creator_prompt(prompt_text):
-    keywords = [
-        "кто создал", "кто тебя создал", "кто разработал", "кто тебя разработал", 
-        "чей ты", "кто твой хозяин", "кто хозяин", "кто твой создатель", 
-        "кто разработчик", "кто тебя придумал", "кто твой автор", "кто автор", "создатель",
-        "научил", "кто научил", "создал", "разработал"
+    t = prompt_text.lower().strip()
+    # Четкие фразы, чтобы обычные вопросы со словом "кто" не триггерили этот блок
+    strict_phrases = [
+        "кто тебя создал", "кто создал тебя", "кто твой создатель", 
+        "кто тебя разработал", "кто разработчик", "кто твой разработчик", 
+        "чей ты", "кто твой хозяин", "кто тебя придумал", 
+        "кто твой автор", "кто автор этого", "кто тебя научил", "кто научил тебя",
+        "создатель", "разработчик"
     ]
-    t = prompt_text.lower()
-    return any(kw in t for kw in keywords)
+    return any(p in t for p in strict_phrases)
 
 def is_greeting(prompt_text):
     greetings = ["привет", "здарова", "здорово", "хай", "hello", "hi", "добрый день", "добрый вечер", "доброе утро"]
@@ -277,8 +277,6 @@ with col_clear:
         stop_speech()
         clear_db()
         st.session_state.messages = []
-        st.session_state.show_file = False
-        st.session_state.show_cam = False
         st.rerun()
 
 with col_file:
@@ -314,7 +312,7 @@ def transcribe_audio(audio_bytes):
     except Exception:
         return None
 
-audio_value = st.audio_input("🎙️", key="native_audio_input")
+audio_value = st.audio_input("🎙️ Нажмите для записи голоса", key="native_audio_input")
 voice_prompt = None
 
 if audio_value:
