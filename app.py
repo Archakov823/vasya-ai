@@ -9,14 +9,12 @@ import streamlit.components.v1 as components
 import speech_recognition as sr
 from groq import Groq
 
-# Проверка и инициализация Groq API
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
 if not GROQ_API_KEY or GROQ_API_KEY == "ВАШ_API_КЛЮЧ_ЕСЛИ_НУЖНО_ЛОКАЛЬНО":
     st.error("⚠️ Внимание: Не найден GROQ_API_KEY в Streamlit Secrets! Добавьте ваш API-ключ в настройках приложения на Streamlit Cloud (Settings -> Secrets).")
 
 client = Groq(api_key=GROQ_API_KEY if GROQ_API_KEY else "dummy_key")
 
-# Настройка базы данных SQLite
 DB_NAME = "chat_history.db"
 
 def init_db():
@@ -116,6 +114,12 @@ st.markdown("""
         border: 1px solid #333537 !important;
     }
 
+    /* Стилизация аудиовхода под аккуратный блок */
+    div[data-testid="stAudioInput"] {
+        margin: 10px auto !important;
+        max-width: 400px !important;
+    }
+
     .stButton > button, .stLinkButton > a {
         border-radius: 20px !important;
         background-color: #1E1F20 !important;
@@ -147,7 +151,7 @@ st.sidebar.title("⚙️ Меню Васи")
 with st.sidebar.expander("📖 О помощнике", expanded=True):
     st.markdown("""
     **Вася AI** — ваш универсальный интеллектуальный помощник. 
-    Поможет в написании кода, решении задач, анализе текстов и любых вопросах.
+    Помогает в написании кода, решении задач, анализе текстов и любых вопросах.
     """)
 
 with st.sidebar.expander("💾 Управление историей", expanded=False):
@@ -206,7 +210,7 @@ def speak_in_browser(text):
     js_code = f"""
         <script>
             if ('speechSynthesis' in window) {{
-                window.speechSynthesis.cancel(); // Сразу глушим любую речь
+                window.speechSynthesis.cancel();
                 
                 function playVoice() {{
                     var msg = new SpeechSynthesisUtterance({clean_text});
@@ -255,19 +259,11 @@ def is_greeting(prompt_text):
 
 # Вывод истории сообщений
 for idx, message in enumerate(st.session_state.messages):
-    with st.chat_message(message["role"]):
-        btn_label = "🔊 Прослушать меня" if message["role"] == "user" else "🔊 Прослушать Васю"
-        if st.button(btn_label, key=f"replay_{idx}"):
-            stop_speech()
-            if message.get("content"):
-                speak_in_browser(message["content"])
-
-        if message.get("content"):
-            st.markdown(message["content"])
-        if "image_url" in message:
-            st.image(message["image_url"], use_container_width=True)
-        if "video_url" in message:
-            st.image(message["video_url"], caption="Сгенерированное видео")
+    st.chat_message(message["role"]).markdown(message["content"])
+    if "image_url" in message:
+        st.image(message["image_url"], use_container_width=True)
+    if "video_url" in message:
+        st.image(message["video_url"], caption="Сгенерированное видео")
 
 st.markdown("---")
 
@@ -305,91 +301,30 @@ if st.session_state.show_cam:
 
 image_to_process = camera_photo or uploaded_file
 
-# Круглая кнопка записи по центру (без сохранения аудио на диск, чистая передача речи)
-mic_html = """
-<div style="display: flex; justify-content: center; align-items: center; margin: 15px 0;">
-    <button id="micBtn" style="
-        width: 70px; height: 70px; border-radius: 50%; 
-        background-color: #0B57D0; border: 3px solid #1A73E8; 
-        color: white; font-size: 28px; cursor: pointer; 
-        box-shadow: 0 4px 12px rgba(11,87,208,0.4);
-        display: flex; align-items: center; justify-content: center;
-        transition: transform 0.2s, background-color 0.2s;
-    " title="Нажмите и говорите">🎙️</button>
-    <span id="micStatus" style="margin-left: 15px; font-family: sans-serif; font-size: 14px; color: #9aa0a6;">Нажмите микрофон для записи</span>
-</div>
+# Нативный голосовой ввод через Streamlit (абсолютно стабилен в облаке)
+def transcribe_audio(audio_bytes):
+    recognizer = sr.Recognizer()
+    try:
+        audio_file = io.BytesIO(audio_bytes)
+        with sr.AudioFile(audio_file) as source:
+            audio_data = recognizer.record(source)
+            return recognizer.recognize_google(audio_data, language="ru-RU")
+    except Exception:
+        return None
 
-<script>
-    const micBtn = document.getElementById('micBtn');
-    const micStatus = document.getElementById('micStatus');
-    
-    let 인식중 = false;
-    
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-        micStatus.innerText = "Голосовой ввод не поддерживается вашим браузером";
-        micBtn.style.opacity = "0.5";
-        micBtn.disabled = true;
-    } else {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'ru-RU';
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
+audio_value = st.audio_input("🎤 Нажмите для записи голоса", key="native_audio_input")
+voice_prompt = None
 
-        micBtn.onclick = () => {
-            // При нажатии сразу глушим голос Васи
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-            }
-            
-            try {
-                recognition.start();
-            } catch(e) {
-                recognition.stop();
-            }
-        };
-
-        recognition.onstart = () => {
-            micBtn.style.backgroundColor = '#EA4335'; // Красный при записи
-            micBtn.style.borderColor = '#F28B82';
-            micStatus.innerText = "Слушаю... Говорите";
-        };
-
-        recognition.onresult = (event) => {
-            const speechResult = event.results[0][0].transcript;
-            micStatus.innerText = "Распознано: " + speechResult;
-            
-            // Передаем текст в Streamlit через URL params и перезагрузку
-            const url = new URL(window.parent.location.href);
-            url.searchParams.set('voice_text', speechResult);
-            window.parent.location.href = url.toString();
-        };
-
-        recognition.onerror = () => {
-            micBtn.style.backgroundColor = '#0B57D0';
-            micBtn.style.borderColor = '#1A73E8';
-            micStatus.innerText = "Ошибка распознавания. Попробуйте еще раз.";
-        };
-
-        recognition.onend = () => {
-            micBtn.style.backgroundColor = '#0B57D0';
-            micBtn.style.borderColor = '#1A73E8';
-        };
-    }
-</script>
-"""
-components.html(mic_html, height=100)
-
-# Проверяем, передан ли голос из JS-виджета через URL параметры
-query_params = st.query_params
-voice_prompt = query_params.get("voice_text", None)
-if voice_prompt:
-    # Очищаем параметр сразу, чтобы не зациклить
-    st.query_params.clear()
+if audio_value:
+    stop_speech()
+    with st.spinner("Распознаю голос..."):
+        voice_prompt = transcribe_audio(audio_value.read())
+        if not voice_prompt:
+            st.warning("Не удалось распознать речь. Попробуйте еще раз.")
 
 text_prompt = st.chat_input("Спросите Васю о чем угодно...")
 if text_prompt or voice_prompt:
-    stop_speech() # Мгновенно затыкаем Васю при любом новом вводе
+    stop_speech()
 
 prompt = voice_prompt or text_prompt
 
@@ -401,21 +336,15 @@ if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
     
     with st.chat_message("user"):
-        if st.button("🔊 Прослушать меня", key=f"replay_new_{len(st.session_state.messages)-1}"):
-            stop_speech()
-            speak_in_browser(prompt)
         st.markdown(prompt)
         if image_to_process:
             st.image(image_to_process, caption="Загруженный файл", use_container_width=True)
 
     with st.chat_message("assistant"):
-        stop_speech() # Глушим старый ответ перед генерацией нового
+        stop_speech()
 
         if is_creator_prompt(prompt):
             reply_text = "Олег Арчаков."
-            if st.button("🔊 Прослушать Васю", key=f"replay_resp_{len(st.session_state.messages)-1}"):
-                stop_speech()
-                speak_in_browser(reply_text)
             st.markdown(reply_text)
             if is_auto_voice:
                 speak_in_browser(reply_text)
@@ -424,9 +353,6 @@ if prompt:
 
         elif is_greeting(prompt):
             reply_text = "Привет! Чем я могу помочь?"
-            if st.button("🔊 Прослушать Васю", key=f"replay_resp_{len(st.session_state.messages)-1}"):
-                stop_speech()
-                speak_in_browser(reply_text)
             st.markdown(reply_text)
             if is_auto_voice:
                 speak_in_browser(reply_text)
@@ -479,9 +405,6 @@ if prompt:
             except Exception as e:
                 full_response = f"Ошибка обращения к Groq API: {e}"
 
-            if st.button("🔊 Прослушать Васю", key=f"replay_resp_final_{len(st.session_state.messages)-1}"):
-                stop_speech()
-                speak_in_browser(full_response)
             st.markdown(full_response)
             
             if is_auto_voice and "Ошибка" not in full_response and "❌" not in full_response:
