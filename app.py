@@ -368,8 +368,8 @@ st.title("✨ Вася AI")
 
 is_auto_voice = st.toggle("🔊 Авто-озвучка ответов", value=True, key="auto_voice_toggle")
 
-# Актуальная флагманская модель Groq Llama 3.3 70B
-TEXT_MODEL = "llama-3.3-70b-versatile"
+# Самая универсальная и доступная модель Groq
+TEXT_MODEL = "llama-3.1-8b-instant"
 
 if "Скальпинг" in selected_mode:
     mode_instruction = "Режим: Скальпинг. Отвечай предельно кратко, чётко, давай сразу суть, уровни и сигнал (Call/Put), без долгих теорий."
