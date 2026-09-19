@@ -368,8 +368,8 @@ st.title("✨ Вася AI")
 
 is_auto_voice = st.toggle("🔊 Авто-озвучка ответов", value=True, key="auto_voice_toggle")
 
-# Стабильная рабочая модель Mixtral на Groq
-TEXT_MODEL = "mixtral-8x7b-32768"
+# Актуальная флагманская модель Groq Llama 3.3 70B
+TEXT_MODEL = "llama-3.3-70b-versatile"
 
 if "Скальпинг" in selected_mode:
     mode_instruction = "Режим: Скальпинг. Отвечай предельно кратко, чётко, давай сразу суть, уровни и сигнал (Call/Put), без долгих теорий."
