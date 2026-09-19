@@ -283,13 +283,22 @@ with st.sidebar.expander("📅 Новости и Экономический ка
 
     if yf is not None:
         try:
-            ticker = yf.Ticker("EURUSD=X")
-            news_items = ticker.news
-            if news_items:
-                for item in news_items[:3]:
-                    title = item.get("title", "Новость рынков")
-                    publisher = item.get("publisher", "Yahoo Finance")
-                    st.markdown(f"🐂🐂🐂 **[High Impact]** {title} _({publisher})_")
+            major_tickers = ["EURUSD=X", "GBPUSD=X", "USDJPY=X", "AUDUSD=X", "USDCAD=X"]
+            all_news = []
+            for t in major_tickers:
+                pair_clean = t.replace("=X", "")
+                pair_formatted = f"{pair_clean[:3]}/{pair_clean[3:]}"
+                ticker = yf.Ticker(t)
+                news_items = ticker.news
+                if news_items:
+                    for item in news_items[:2]:
+                        title = item.get("title", "Новость рынков")
+                        publisher = item.get("publisher", "Yahoo Finance")
+                        all_news.append((pair_formatted, title, publisher))
+
+            if all_news:
+                for pair, title, publisher in all_news[:5]:
+                    st.markdown(f"🐂🐂🐂 **[{pair}]** **[High Impact]** {title} _({publisher})_")
                 news_loaded = True
         except Exception:
             pass
