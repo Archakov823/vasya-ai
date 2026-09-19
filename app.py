@@ -19,9 +19,6 @@ except ImportError:
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "ВАШ_API_КЛЮЧ_ЕСЛИ_НУЖНО_ЛОКАЛЬНО")
 client = Groq(api_key=GROQ_API_KEY)
 
-# Надежная рабочая текстовая модель Groq без экспериментов с terms acceptance
-TEXT_MODEL = "llama-3.3-70b-versatile"
-
 # Настройка базы данных SQLite
 DB_NAME = "chat_history.db"
 
@@ -588,6 +585,18 @@ if prompt:
 
         else:
             full_response = ""
+            success = False
+            
+            # Список моделей-кандидатов с автоматическим перебором при ошибке 404 / terms required
+            candidate_models = [
+                "llama-3.3-70b-versatile",
+                "llama-3.1-8b-instant",
+                "llama3-70b-8192",
+                "llama3-8b-8192",
+                "mixtral-8x7b-32768",
+                "gemma2-9b-it"
+            ]
+
             try:
                 recent_messages = st.session_state.messages[-6:]
                 messages_to_send = [SYSTEM_PROMPT] + [
@@ -595,16 +604,24 @@ if prompt:
                     for m in recent_messages if "content" in m
                 ]
                 
-                completion = client.chat.completions.create(
-                    model=TEXT_MODEL,
-                    messages=messages_to_send,
-                    temperature=0.3,
-                    stream=True
-                )
+                for model_name in candidate_models:
+                    try:
+                        completion = client.chat.completions.create(
+                            model=model_name,
+                            messages=messages_to_send,
+                            temperature=0.3,
+                            stream=True
+                        )
+                        for chunk in completion:
+                            if chunk.choices[0].delta.content:
+                                full_response += chunk.choices[0].delta.content
+                        success = True
+                        break
+                    except Exception:
+                        continue # Пробуем следующую модель из списка, если эта упала
                 
-                for chunk in completion:
-                    if chunk.choices[0].delta.content:
-                        full_response += chunk.choices[0].delta.content
+                if not success:
+                    full_response = "Ошибка: не удалось найти ни одну доступную модель Groq. Проверьте ваш API-ключ в Streamlit Secrets."
             except Exception as e:
                 full_response = f"Ошибка обращения к Groq API: {e}"
 
@@ -612,7 +629,7 @@ if prompt:
                 speak_in_browser(full_response)
             st.markdown(full_response)
             
-            if is_auto_voice and "Ошибка обращения" not in full_response:
+            if is_auto_voice and "Ошибка" not in full_response:
                 speak_in_browser(full_response)
             
             save_message("assistant", full_response)
