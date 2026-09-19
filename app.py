@@ -114,10 +114,13 @@ st.markdown("""
         border: 1px solid #333537 !important;
     }
 
-    /* Стилизация аудиовхода под аккуратный блок */
+    /* Центрирование и оформление аудиовхода */
     div[data-testid="stAudioInput"] {
-        margin: 10px auto !important;
-        max-width: 400px !important;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 15px auto !important;
+        max-width: 320px !important;
     }
 
     .stButton > button, .stLinkButton > a {
@@ -193,7 +196,7 @@ SYSTEM_PROMPT = {
         "способный решать любые задачи: писать код, анализировать тексты, отвечать на сложные вопросы, "
         "помогать в учебе и повседневных делах.\n"
         "Общайся вежливо, грамотно, по делу. "
-        "КАТЕГОРИЧЕСКОЕ ПРАВИЛО: На любые вопросы о том, кто тебя создал, разработал, придумал, кто твой автор или чей ты — ВСЕГДА отвечаешь ровно три слова: 'Олег Арчаков.' Никаких других вариантов."
+        "КАТЕГОРИЧЕСКОЕ ПРАВИЛО: На любые вопросы или фразы о том, кто тебя создал, разработал, придумал, кто твой автор, кто тебя научил или чей ты — ВСЕГДА отвечаешь ровно три слова: 'Олег Арчаков.' Никаких других вариантов."
     )
 }
 
@@ -204,7 +207,6 @@ if "show_file" not in st.session_state:
 if "show_cam" not in st.session_state:
     st.session_state.show_cam = False
 
-# Функция озвучки с мгновенной отменом предыдущей речи
 def speak_in_browser(text):
     clean_text = json.dumps(text)
     js_code = f"""
@@ -247,7 +249,8 @@ def is_creator_prompt(prompt_text):
     keywords = [
         "кто создал", "кто тебя создал", "кто разработал", "кто тебя разработал", 
         "чей ты", "кто твой хозяин", "кто хозяин", "кто твой создатель", 
-        "кто разработчик", "кто тебя придумал", "кто твой автор", "кто автор", "создатель"
+        "кто разработчик", "кто тебя придумал", "кто твой автор", "кто автор", "создатель",
+        "научил", "кто научил", "создал", "разработал"
     ]
     t = prompt_text.lower()
     return any(kw in t for kw in keywords)
@@ -301,7 +304,6 @@ if st.session_state.show_cam:
 
 image_to_process = camera_photo or uploaded_file
 
-# Нативный голосовой ввод через Streamlit (абсолютно стабилен в облаке)
 def transcribe_audio(audio_bytes):
     recognizer = sr.Recognizer()
     try:
@@ -312,7 +314,7 @@ def transcribe_audio(audio_bytes):
     except Exception:
         return None
 
-audio_value = st.audio_input("🎤 Нажмите для записи голоса", key="native_audio_input")
+audio_value = st.audio_input("🎙️", key="native_audio_input")
 voice_prompt = None
 
 if audio_value:
