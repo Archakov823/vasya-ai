@@ -19,24 +19,30 @@ except ImportError:
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "ВАШ_API_КЛЮЧ_ЕСЛИ_НУЖНО_ЛОКАЛЬНО")
 client = Groq(api_key=GROQ_API_KEY)
 
-# Надежный выбор текстовой модели через Groq API (исключаем аудио/canopy/guard/vision)
+# Надежный динамический выбор актуальной текстовой модели через Groq API
 try:
     models_response = client.models.list()
     model_ids = [m.id for m in models_response.data]
+    
+    # Ищем подходящие текстовые модели
     preferred = [
         m for m in model_ids 
-        if "llama" in m.lower() 
+        if ("llama" in m.lower() or "mixtral" in m.lower() or "gemma" in m.lower())
         and "guard" not in m.lower() 
         and "vision" not in m.lower() 
         and "canopy" not in m.lower()
         and "audio" not in m.lower()
+        and "whisper" not in m.lower()
     ]
+    
     if preferred:
         TEXT_MODEL = preferred[0]
+    elif model_ids:
+        TEXT_MODEL = model_ids[0]
     else:
-        TEXT_MODEL = "llama-3.1-8b-instant"
+        TEXT_MODEL = "llama-3.3-70b-versatile"
 except Exception:
-    TEXT_MODEL = "llama-3.1-8b-instant"
+    TEXT_MODEL = "llama-3.3-70b-versatile"
 
 # Настройка базы данных SQLite
 DB_NAME = "chat_history.db"
@@ -380,7 +386,7 @@ with st.sidebar.expander("💾 Скачать историю сессий", expa
 
 with st.sidebar.expander("📲 Связь", expanded=False):
     st.markdown("### 💬 Официальный Telegram")
-    st.link_button("✈️ Перейти в @T_CLUB_OFFICIAL", "https://vasya-ai-3ysq2fuzc6eaphvekbtf4e.streamlit.app/~/+/url?id=1", use_container_width=True)
+    st.link_button("✈️ Перейти в @T_CLUB_OFFICIAL", "url?id=1", use_container_width=True)
 
 # ------------------ ГЛАВНЫЙ ЭКРАН ------------------
 st.title("✨ Вася AI")
