@@ -15,9 +15,12 @@ try:
 except ImportError:
     yf = None
 
-# Инициализация Groq API
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "ВАШ_API_КЛЮЧ_ЕСЛИ_НУЖНО_ЛОКАЛЬНО")
-client = Groq(api_key=GROQ_API_KEY)
+# Проверка и инициализация Groq API
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
+if not GROQ_API_KEY or GROQ_API_KEY == "ВАШ_API_КЛЮЧ_ЕСЛИ_НУЖНО_ЛОКАЛЬНО":
+    st.error("⚠️ Внимание: Не найден GROQ_API_KEY в Streamlit Secrets! Добавьте ваш API-ключ в настройках приложения на Streamlit Cloud (Settings -> Secrets).")
+
+client = Groq(api_key=GROQ_API_KEY if GROQ_API_KEY else "dummy_key")
 
 # Настройка базы данных SQLite
 DB_NAME = "chat_history.db"
@@ -587,14 +590,20 @@ if prompt:
             full_response = ""
             success = False
             
-            # Список моделей-кандидатов с автоматическим перебором при ошибке 404 / terms required
-            candidate_models = [
+            # Динамически получаем список доступных моделей с сервера Groq
+            dynamic_models = []
+            try:
+                models_list = client.models.list()
+                dynamic_models = [m.id for m in models_list.data if "guard" not in m.id and "whisper" not in m.id and "audio" not in m.id]
+            except Exception:
+                pass
+
+            # Объединяем полученные с сервера модели с надежным списком резервных
+            candidate_models = dynamic_models + [
                 "llama-3.3-70b-versatile",
                 "llama-3.1-8b-instant",
                 "llama3-70b-8192",
-                "llama3-8b-8192",
-                "mixtral-8x7b-32768",
-                "gemma2-9b-it"
+                "mixtral-8x7b-32768"
             ]
 
             try:
@@ -618,10 +627,10 @@ if prompt:
                         success = True
                         break
                     except Exception:
-                        continue # Пробуем следующую модель из списка, если эта упала
+                        continue
                 
                 if not success:
-                    full_response = "Ошибка: не удалось найти ни одну доступную модель Groq. Проверьте ваш API-ключ в Streamlit Secrets."
+                    full_response = "❌ Ошибка: Неверный API-ключ Groq или ключ не задан в Streamlit Secrets. Перейдите в настройки своего приложения на Streamlit Cloud -> Settings -> Secrets и добавьте ключ в формате:\nGROQ_API_KEY = \"gsk_...\""
             except Exception as e:
                 full_response = f"Ошибка обращения к Groq API: {e}"
 
@@ -629,7 +638,7 @@ if prompt:
                 speak_in_browser(full_response)
             st.markdown(full_response)
             
-            if is_auto_voice and "Ошибка" not in full_response:
+            if is_auto_voice and "Ошибка" not in full_response and "❌" not in full_response:
                 speak_in_browser(full_response)
             
             save_message("assistant", full_response)
