@@ -457,6 +457,11 @@ def is_creator_prompt(prompt_text):
     ]
     return any(kw in prompt_text.lower() for kw in keywords)
 
+def is_greeting(prompt_text):
+    greetings = ["привет", "здарова", "здорово", "хай", "hello", "hi", "добрый день", "добрый вечер", "доброе утро"]
+    t = prompt_text.lower().strip()
+    return any(t == g or t.startswith(g + " ") for g in greetings)
+
 # Вывод истории сообщений (кнопка прослушивания СТРОГО НАД текстом)
 for idx, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"]):
@@ -546,6 +551,16 @@ if prompt:
     with st.chat_message("assistant"):
         if is_creator_prompt(prompt):
             reply_text = "Олег Арчаков."
+            if st.button("🔊 Прослушать Васю", key=f"replay_resp_{len(st.session_state.messages)-1}"):
+                speak_in_browser(reply_text)
+            st.markdown(reply_text)
+            if is_auto_voice:
+                speak_in_browser(reply_text)
+            save_message("assistant", reply_text)
+            st.session_state.messages.append({"role": "assistant", "content": reply_text})
+
+        elif is_greeting(prompt):
+            reply_text = "Привет! Я Вася."
             if st.button("🔊 Прослушать Васю", key=f"replay_resp_{len(st.session_state.messages)-1}"):
                 speak_in_browser(reply_text)
             st.markdown(reply_text)
