@@ -19,15 +19,20 @@ except ImportError:
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "ВАШ_API_КЛЮЧ_ЕСЛИ_НУЖНО_ЛОКАЛЬНО")
 client = Groq(api_key=GROQ_API_KEY)
 
-# Автоматический выбор доступной модели через Groq API (избавляет от ошибок 404/400)
+# Надежный выбор текстовой модели через Groq API (исключаем аудио/canopy/guard/vision)
 try:
     models_response = client.models.list()
     model_ids = [m.id for m in models_response.data]
-    preferred = [m for m in model_ids if "llama" in m.lower() and "guard" not in m.lower() and "vision" not in m.lower()]
+    preferred = [
+        m for m in model_ids 
+        if "llama" in m.lower() 
+        and "guard" not in m.lower() 
+        and "vision" not in m.lower() 
+        and "canopy" not in m.lower()
+        and "audio" not in m.lower()
+    ]
     if preferred:
         TEXT_MODEL = preferred[0]
-    elif model_ids:
-        TEXT_MODEL = model_ids[0]
     else:
         TEXT_MODEL = "llama-3.1-8b-instant"
 except Exception:
